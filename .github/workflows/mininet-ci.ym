@@ -1,0 +1,74 @@
+name: Mininet CI-CD
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+
+  test:
+
+    name: Test Network
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install networking tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mininet openvswitch-switch
+          sudo systemctl start openvswitch-switch
+          sudo mn -c
+
+      - name: Check Python syntax
+        run: |
+          python3 -m py_compile network_ci.py
+
+      - name: Run connectivity test
+        run: |
+          sudo python3 network_ci.py
+
+
+  deploy:
+
+    name: Deploy Validated Network
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install networking tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mininet openvswitch-switch
+          sudo systemctl start openvswitch-switch
+          sudo mn -c
+
+      - name: Deploy validated topology
+        run: |
+          sudo python3 network_ci.py | tee deployment-test.txt
+
+      - name: Record deployment
+        run: |
+          echo "Validated commit: $GITHUB_SHA" \
+          >> deployment-test.txt
+
+      - name: Save deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: mininet-deployment-record
+          path: deployment-test.txt
